@@ -9,8 +9,8 @@ services:
         tty: true
         stdin_open: true
         ports:
-            - "9001:8069"
-            - "9002:8072"
+            - "10014:8069"
+            - "20014:8072"
         volumes:
             - ./addons:/mnt/extra-addons
             - ./conf:/etc/odoo
