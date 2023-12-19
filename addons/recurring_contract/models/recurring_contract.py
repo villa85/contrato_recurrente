@@ -31,7 +31,9 @@ class RecurringContract(models.Model):
 
     name = fields.Char(string='Contract Name', required=True, help='To add contract name')
     budget_id = fields.Many2one('sale.order',string='Budget', help='To add budget reference')
-    product_id = fields.Many2one('product.product', string='Product', required=True)
+    # order_line = fields.One2many('sale.order.line', string='Product', required=False)
+    # quantity = fields.Float(string='Quantity', default=1.0, compute='_compute_quantity_budget')
+    amount_untaxed = fields.Monetary(string='Amount Total', store=True, compute='_compute_amount_untaxed_budget', readonly=True, help='Show Total Amount')
     amount_total_budget = fields.Monetary(string='Amount Total', store=True, compute='_compute_amount_total_budget', readonly=True, help='Show Total Amount')
     contacts = fields.Many2many('res.partner',  string='Contacts', help='To add contracts reference')
     partner_id = fields.Many2one('res.partner', string="Customer",help='To add Customer')
@@ -48,6 +50,10 @@ class RecurringContract(models.Model):
     company_id = fields.Many2one('res.company', string='Company', default=lambda self: self.env.company, help='To get company')
     currency_id = fields.Many2one('res.currency', string='Currency', help='To get currency', required=True, default=lambda self: self.env.company.currency_id)
     journal_id = fields.Many2one('account.journal', string='Journal', required=True, domain="[('type', '=', 'sale'), ('company_id', '=', company_id)]")
+    # contract_line_ids = fields.One2many('subscription.contracts.line',
+    #                                     'subscription_contract_id',
+    #                                     help='To Add Subscription Contract',
+    #                                     string='Contract lines')
     invoice_payment_term_id = fields.Many2one('account.payment.term', string='Payment Terms')
     date_start = fields.Date(string='Start Date', default=fields.Date.today(), help='To Add subscription contract start date')
     date_end = fields.Date(string='End Date', help='Subscription End Date')
@@ -84,25 +90,47 @@ class RecurringContract(models.Model):
             'partner_id': self.partner_id.id,
             'fiscal_position_id': self.partner_id.property_account_position_id and self.partner_id.property_account_position_id.id or False,
             'company_id': self.company_id.id,
+            # 'contract_origin': self.id,
             'invoice_date': fields.date.today(),
             'journal_id': self.journal_id.id,
             'currency_id': self.currency_id.id,
+            'amount_untaxed': self.amount_untaxed,
+            'amount_total': self.amount_total_budget,
             'invoice_payment_term_id': self.invoice_payment_term_id.id if self.invoice_payment_term_id else False,
             'invoice_line_ids': [] #,
             # 'narration': self.notes
         }
         return vals
 
-    def _prepare_invoice_line_vals(self):
-        vals = {
-            'product_id': self.product_id.id, # estoy por aca
-            'quantity': self.quantity,
-            'display_type': 'product',
-            'price_unit': self.price_unit,
-            'analytic_distribution': {str(self.analytic_account_id.id): 100} if self.analytic_account_id else False,
-            'name': self.product_id.name,
-        }
-        return vals
+    def action_view_invoice(self, invoice):
+        action = self.env.ref('account.action_move_out_invoice_type').read()[0]
+        action['views'] = [(self.env.ref('account.view_move_form').id, 'form')]
+        action['res_id'] = invoice.id
+        return action
+
+    # def action_generate_invoice(self):
+    #     """ Button to generate invoice """
+    #     self.env['account.move'].create(
+    #         {
+    #             'move_type': 'out_invoice',
+    #             'partner_id': self.partner_id.id,
+    #             'invoice_date': fields.date.today(),
+    #             'contract_origin': self.id,
+    #             'invoice_line_ids': []
+    #         })
+    #     self.invoice_count = self.env['account.move'].search_count([
+    #         ('contract_origin', '=', self.id)])
+
+    # def _prepare_invoice_line_vals(self):
+    #     vals = {
+    #         'product_id': self.product_id.id, # estoy por aca
+    #         'quantity': self.quantity,
+    #         'display_type': 'product',
+    #         'price_unit': self.price_unit,
+    #         'analytic_distribution': {str(self.analytic_account_id.id): 100} if self.analytic_account_id else False,
+    #         'name': self.product_id.name,
+    #     }
+    #     return vals
 
 
     @api.depends('date_start', 'recurring_invoice', 'recurring_period',
@@ -138,8 +166,19 @@ class RecurringContract(models.Model):
         for record in self:
             record.amount_total_budget = record.budget_id.amount_total if record.budget_id else 0.0
 
-    @api.depends('budget_id.produc_id')
+    @api.depends('budget_id.amount_untaxed')
+    def _compute_amount_untaxed_budget(self):
+        for record in self:
+            record.amount_untaxed = record.budget_id.amount_untaxed if record.budget_id else 0.0
+
+    @api.depends('budget_id.order_line')
     def _compute_product_budget(self):
-        if self.budget_id:
+        for record in self:
             # Actualiza el campo produc_id con el valor del presupuesto seleccionado
-            self.produc_id = self.budget_id.produc_id.id
+            record.order_line = record.budget_id.order_line
+
+    @api.depends('budget_id.quantity')
+    def _compute_quantity_budget(self):
+        if self.budget_id:
+            # Actualiza el campo quantity con el valor del presupuesto seleccionado
+            self.quantity = self.budget_id.quantity

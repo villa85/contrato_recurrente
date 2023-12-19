@@ -49,16 +49,22 @@
                         <group>
                             <group>
                                 <field name="lock" invisible="1"/>
+                                <field name="amount_untaxed" invisible="0"/>
+                                <!-- <field name= "order_line" invisible="0"/> -->
+                                <!-- <field name= "quantity" invisible="0"/> -->
                                 <field name="contacts" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}" placeholder="e.g. &quot;B2B&quot;, &quot;VIP&quot;, &quot;Consulting&quot;, ..."/>
+                                <field name= "journal_id" invisible="0"/>
+                                <field name= "invoice_payment_term_id" invisible="0"/>
                                 <field name="partner_id" widget="selection"/>
                                 <field name="budget_id" widget="selection"/>
                                 <field name="amount_total_budget"/>
                                 <field name="recurring_period_interval"/>
+
+                            </group>
+                            <group>
                                 <field name="recurring_period"/>
                                 <field name="recurring_invoice"/>
                                 <field name="next_invoice_date"/>
-                            </group>
-                            <group>
                                 <field name="contract_reminder"/>
                                 <field name="company_id"/>
                                 <field name="currency_id"/>
